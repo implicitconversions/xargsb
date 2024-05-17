@@ -1,0 +1,26 @@
+name: Test xargsb
+on:
+  push:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+# concurrency should work such that pushes to the same branch or PR request should cancel prior runs,
+# but nightlies and things shouldn't be affected by PRs or manual triggers or other things. github.event_name
+# seems to be the best way to accomplish this.
+concurrency:
+  group: ${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ !( github.ref_name == 'main' || startsWith(github.ref_name, 'release/') || github.event_name == 'schedule' )}}
+
+jobs:
+  test-xargsb-compliance:
+    runs-on:
+      labels:
+        - windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test xargsb compliance
+        run: |
+          ./.github/tests.sh

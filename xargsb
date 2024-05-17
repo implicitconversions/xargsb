@@ -1,0 +1,141 @@
+#!/bin/bash 
+
+items_per_invoke=24
+
+ORIGINAL_ARGS=( "$@" )
+
+while (( $# )); do
+    item="$1"
+    (( end_of_args )) && {
+        COMMAND+=( "$item" )
+        shift
+        continue
+    }
+
+    case "$item" in
+        -P) parallel_procs=$2; shift ;;
+        -P*) parallel_procs=${item#-P} ;;
+        -0|--null) NUL_TERMINATED=1 ;;
+        -I) subst_string="$2"; shift ;;
+        -I*) subst_string="${item#-I}" ;;
+        -n) items_per_invoke=$2; shift ;;
+        -n*) items_per_invoke=${item#-n} ;;
+        --max-args=*) items_per_invoke="${item#*=}" ;;
+        --max-procs=*) parallel_procs="${item#*=}" ;;
+        --replace=*) subst_string="${item#*=}" ;;
+
+        --version) SHOW_HELP=0 && SHOW_VERSION=1 ;;
+        --help)    SHOW_HELP=1 && SHOW_VERSION=0 ;;
+
+        -t|--verbose) VERBOSE=1 ;;
+
+        # -r is default behavior for our xargs replacement, so ignore it happily.
+        -r|--no-run-if-empty) ;;
+        -x|--exit) ;;
+
+        --) end_of_args=1 ;;
+        -*) unsupported_args+=( "$item") ;;
+        *) end_of_args=1; COMMAND+=( "$item" ) ;;
+    esac
+
+    shift
+done
+
+(( ${#unsupported_args[@]} )) && {
+    echo >&2 "warning: falling back on host-provided xargs command due to unsupported argument(s): ${unsupported_args[*]}"
+    echo >&2 "Unsetting some environment variables to give xargs a better chance of success."
+    unset -v ORIGINAL_PATH MANPATH INFOPATH PRINTER
+    unset -v GITHUB_REF_PROTECTED
+    unset -v SCE_ORBIS_SAMPLE_DIR SCE_PROSPERO_SAMPLE_DIR
+    unset -v POWERSHELL_DISTRIBUTION_CHANNEL GITHUB_TRIGGERING_ACTOR PROCESSOR_IDENTIFIER
+    exec /usr/bin/xargs "${ORIGINAL_ARGS[@]}"
+}
+
+(( SHOW_VERSION )) && {
+    echo "xxargs (implicit-actions/shell_core) v0.1.0"
+    exit 0
+}
+
+(( SHOW_HELP )) && {
+    echo  "xxargs (implicit-actions/shell_core), an xargs intercept."
+    echo  "showing help information for system-provided xargs. Some options may not be supported by the xxargs intercept."
+    exec env -i PATH="/usr/bin:/bin" /usr/bin/xargs "$@"
+}
+
+
+(( ${#COMMAND[@]} )) || COMMAND=( echo )
+
+read_command=( read -r )
+delimiter='\n'
+(( NUL_TERMINATED )) && delimiter='\0'
+(( NUL_TERMINATED )) && read_command=(read -r -d $'\0')
+
+function command_with_trace() {
+    (( ++running_procs > parallel_procs )) && {
+        wait -n $(jobs -p) || one_failed=1
+    }
+
+    (( VERBOSE )) && local - && set -x
+    "$@" &
+}
+
+function reformat_stdin_stream() {
+    (( NUL_TERMINATED )) && {
+        cat -
+        printf '\0'
+        return 0
+    }
+
+    # xargs has the peculiar behavior that it becomes newline-delimited when -I is used.
+    # Worse, it strips leading whitespace in this mode but not TRAILING whitespace. Very peculiar.
+    [[ $subst_string ]] && {
+        dos2unix
+        printf "\n"
+        return 0
+    }
+
+    # reformat the witespace-delimited input stream to be newline delimited (bash read-friendly)
+    dos2unix | tr ' ' '\n' | tr '\t' '\n'
+    printf "\n"
+    return 0
+}
+
+trim() {
+    local var="$*"
+    # 1. remove leading whitespace characters (for any non-null mode)
+    # 2. remove trailing whitespace characters
+    #     ... but only if xargs is not operating in -I mode, in which case only strip leading.
+    var="${var#"${var%%[![:space:]]*}"}"
+    [[ $subst_string ]] || var="${var%"${var##*[![:space:]]}"}"
+    printf '%s' "$var"
+}
+
+one_failed=0
+running_procs=0
+[[ $subst_string ]] && {
+    items_per_invoke=1
+    while IFS= "${read_command[@]}" item; do
+        (( NUL_TERMINATED )) || item="$(trim "$item")"
+        [[ $item ]] || continue
+        command_with_trace "${COMMAND[@]//$subst_string/$item}"
+    done < <(reformat_stdin_stream)
+    wait || one_failed=1
+    exit $one_failed
+}
+
+while IFS= "${read_command[@]}" item; do
+    (( NUL_TERMINATED )) || item="$(trim "$item")"
+    [[ $item ]] || continue
+    ARGS+=( "$item" )
+    (( ${#ARGS[@]} >= items_per_invoke )) && {
+        command_with_trace "${COMMAND[@]}" "${ARGS[@]}"
+        ARGS=()
+    }
+done < <(reformat_stdin_stream)
+
+(( ${#ARGS[@]} > 0 )) && {
+    command_with_trace "${COMMAND[@]}" "${ARGS[@]}"
+}
+
+wait || one_failed=1
+exit $one_failed

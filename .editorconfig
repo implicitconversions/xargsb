@@ -1,0 +1,36 @@
+[*]
+end_of_line = lf
+
+# UTF-8 globally by default. If other encoding is needed, probably it should be implemented for specific
+# files or directories using an .editorconfig in that dir, and not for global extension patterns.
+charset = utf-8
+
+[*.{cpp,h,hpp,hxx,inl}]
+end_of_line = lf
+trim_trailing_whitespace = false
+
+[*.{py}]
+end_of_line = lf
+indent_style = tab
+
+# Visual studio's XML-ish stuff should always be 2-width soft tabs
+[*.{vcxproj,csproj,props,targets}]
+indent_style = space
+indent_size = 2
+end_of_line = crlf
+
+# but visual studio's solutions are 4-width hard tabs
+[*.{sln}]
+indent_style = tab
+indent_size = 4
+
+# sh scripts need to have LF endings for best behavior on MSYS2/Cygwin
+[*.{sh}]
+indent_style = space
+end_of_line = lf
+insert_final_newline = true
+
+[*.{cmd,bat}]
+indent_style = space
+end_of_line = lf
+insert_final_newline = true

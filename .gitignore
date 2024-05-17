@@ -1,0 +1,10 @@
+*.stackdump
+
+# ignore anything with a dot prefix by default
+# (these can always be added explicitly via forced add commands)
+.*
+
+# re-include a few dirs meant to be checked in
+!.github/
+!.gitattributes
+!.gitignore
