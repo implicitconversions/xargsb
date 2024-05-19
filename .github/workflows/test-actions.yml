@@ -15,10 +15,20 @@ concurrency:
   cancel-in-progress: ${{ !( github.ref_name == 'main' || startsWith(github.ref_name, 'release/') || github.event_name == 'schedule' )}}
 
 jobs:
-  test-xargsb-compliance:
+  test-compliance-msw:
     runs-on:
       labels:
         - windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test xargsb compliance
+        run: |
+          ./.github/tests.sh
+
+  test-compliance-linux:
+    runs-on:
+      labels:
+        - ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Test xargsb compliance

@@ -10,7 +10,10 @@ command -v xargsb >& /dev/null || {
 
 test_failed=0
 function run_test() {
-    # use sort to ensure parallel ops diffs don't get random failures.
+    #  - use an input string with space, tab, and newline delimiters to confirm various (sometimes unexpected)
+    #    esoteric behavior differences of the original xargs depending on options and delimiter type.
+    #  - use sort to ensure parallel ops diffs don't get random failures.
+
     echo "==== testing == xargs $*"
     diff \
         <(printf "1one 2two\n3x\n3y\n3z\n three \n\tfour\txfive\nxsix\t" | xargsb "$@" | sort) \
@@ -30,10 +33,17 @@ function run_test() {
     return 0
 }
 
+function run_test_verbose() {
+    # todo: add a test to confirm the verbose (-t) output matches xargs as well.
+    return 0
+}
+
+
 run_test
 run_test -n1
 run_test -I SUBST -- echo "Item: SUBST"
 
 run_test -P3 -n2
 run_test -P3 -I SUBST -- echo "Item: SUBST"
+
 exit $test_failed
