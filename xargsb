@@ -52,16 +52,22 @@ done
 }
 
 (( SHOW_VERSION )) && {
-    echo "xxargs (implicit-actions/shell_core) v0.1.0"
+    echo "xargsb v0.1.0"
     exit 0
 }
 
 (( SHOW_HELP )) && {
-    echo  "xxargs (implicit-actions/shell_core), an xargs intercept."
+    echo  "xargsb, an xargs intercept."
     echo  "showing help information for system-provided xargs. Some options may not be supported by the xxargs intercept."
     exec env -i PATH="/usr/bin:/bin" /usr/bin/xargs "$@"
 }
 
+# if dos2unix doesn't exist, assume we're on some flavor of unix and that stdout pass-through works.
+command -v dos2unix &> /dev/null || {
+    function dos2unix {
+        cat -
+    }
+}
 
 (( ${#COMMAND[@]} )) || COMMAND=( echo )
 
